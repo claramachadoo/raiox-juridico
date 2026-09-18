@@ -92,12 +92,32 @@ próprio (ex. `raiox.claramachadoadvocacia.com.br`) para esta URL.
 
 ## Importante sobre os dados
 
-Como não há back-end, os leads ficam **apenas no navegador do dispositivo
-usado**. Isso significa:
-- Use sempre o **mesmo aparelho** durante todo o evento, para acumular
-  todos os leads num único lugar.
-- Exporte o CSV **antes** de limpar os dados ou de desinstalar/atualizar o
-  navegador.
-- Para integrar automaticamente com uma base própria (Supabase, CRM etc.),
-  é necessário adicionar uma chamada de API em `js/app.js`, na função
-  `saveLead()` — ponto de extensão já isolado no código para isso.
+Cada lead é salvo em **dois lugares ao mesmo tempo**:
+
+1. **`localStorage` do dispositivo do estande** — funciona mesmo sem
+   internet no local do evento, e é o que alimenta o painel da equipe
+   (`Acesso da equipe` → estatísticas, tabela, CSV).
+2. **Supabase** (tabela `raiox_leads`) — uma cópia central, em segundo
+   plano, disponível de qualquer lugar depois do evento.
+
+Se a internet do estande cair, o lead **não se perde**: continua garantido
+no `localStorage` e você exporta o CSV normalmente ao final do dia.
+
+### Configurar o Supabase (uma vez só)
+
+1. No painel do Supabase, vá em **SQL Editor → New query**, cole o
+   conteúdo de `supabase/schema.sql` e rode. Isso cria a tabela
+   `raiox_leads` já com a segurança (RLS) configurada: o formulário público
+   consegue **enviar** leads, mas ninguém consegue **ler** a lista usando a
+   chave pública do site.
+2. As credenciais já estão plugadas em `js/app.js` (objeto `CONFIG`) e
+   também documentadas em `.env` (esse arquivo é só para referência/backup
+   — como o site é estático puro, sem Next.js ou build, ele **não é lido
+   pelo navegador**; o que realmente conecta é a cópia dentro de
+   `js/app.js`).
+3. Para conferir os leads depois do evento: Supabase → **Table Editor** →
+   `raiox_leads`, ou pelo CSV exportado direto do painel da equipe.
+
+Se um dia quiser trocar de projeto Supabase (ou girar a chave por
+segurança), edite `supabaseUrl` e `supabaseKey` em `js/app.js` — é o único
+lugar que precisa mudar.

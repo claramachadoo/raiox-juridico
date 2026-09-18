@@ -7,7 +7,13 @@
   var CONFIG = {
     firmWhatsApp: "5579900000000", // TODO: substituir pelo WhatsApp comercial real (formato 55DDDNUMERO)
     teamPin: "2026",               // código de acesso do painel da equipe (mude quando quiser)
-    storageKey: "raiox_leads_v1"
+    storageKey: "raiox_leads_v1",
+
+    // Supabase — a "publishable key" é feita para ficar exposta no navegador;
+    // a proteção real vem das políticas de RLS da tabela (ver supabase/schema.sql).
+    supabaseUrl: "https://mrzqganozvvtgfyjfeeq.supabase.co",
+    supabaseKey: "sb_publishable_bvNY7mCWIVvy366bYigtDA_4e6Jkk8Z",
+    supabaseTable: "raiox_leads"
   };
 
   /* ==========================================================
@@ -268,6 +274,8 @@
     }catch(e){ return []; }
   }
   function saveLead(record){
+    // 1) Fonte de verdade do painel da equipe no estande: localStorage
+    //    (funciona mesmo sem internet no local do evento).
     try{
       var leads = getLeads();
       leads.push(record);
@@ -275,6 +283,45 @@
     }catch(e){
       console.warn("Não foi possível salvar o lead localmente:", e);
     }
+
+    // 2) Cópia central no Supabase, em segundo plano. Se falhar (sem
+    //    internet no estande, por exemplo), o lead continua garantido
+    //    no localStorage acima — a equipe não perde nada.
+    syncLeadToSupabase(record);
+  }
+
+  function syncLeadToSupabase(record){
+    if(!CONFIG.supabaseUrl || !CONFIG.supabaseKey) return;
+
+    var payload = {
+      captured_at: record.ts,
+      nome: record.nome,
+      escola: record.escola,
+      cargo: record.cargo,
+      alunos: record.alunos,
+      whatsapp: record.whatsapp,
+      preocupacao: record.preocupacao,
+      indice: record.indice,
+      pontos_atencao: record.pontosAtencao,
+      pilar_fraco: record.pilarFraco,
+      pilar_scores: record.pilarScores,
+      origem: "geedu-connect"
+    };
+
+    fetch(CONFIG.supabaseUrl + "/rest/v1/" + CONFIG.supabaseTable, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "apikey": CONFIG.supabaseKey,
+        "Authorization": "Bearer " + CONFIG.supabaseKey,
+        "Prefer": "return=minimal"
+      },
+      body: JSON.stringify(payload)
+    }).catch(function(err){
+      // Silencioso de propósito: o formulário não deve travar nem assustar
+      // o visitante por causa de uma falha de rede em segundo plano.
+      console.warn("Não foi possível sincronizar o lead com o Supabase (fica salvo localmente):", err);
+    });
   }
 
   /* ==========================================================
